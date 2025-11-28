@@ -1,4 +1,4 @@
-from datasets import get_dataset
+from local_datasets import get_dataset
 from torch.utils.data import DataLoader
 from torch.utils.data._utils.collate import default_collate
 def collate_fn(batch):

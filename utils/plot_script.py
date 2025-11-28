@@ -78,8 +78,8 @@ def plot_3d_motion(save_path, kinematic_tree, joints, title, figsize=(10, 10), f
 
     def update(index):
         #         print(index)
-        ax.lines = []
-        ax.collections = []
+        ax.lines.clear()
+        ax.collections.clear()
         ax.view_init(elev=120, azim=-90)
         ax.dist = 7.5
         #         ax =

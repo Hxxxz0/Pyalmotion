@@ -32,7 +32,7 @@ class TrainOptions():
         
         # train hyperparams
         self.parser.add_argument('--seed',  type=int, default=0, help='seed for train')
-        self.parser.add_argument('--num_train_steps', type=int, default=50_000, help='Number of training iterations')
+        self.parser.add_argument('--num_train_steps', type=int, default=60000, help='Number of training iterations')
         self.parser.add_argument('--lr', type=float, default=2e-4, help='Learning rate')
         self.parser.add_argument("--decay_rate", default=0.9, type=float, help="the decay rate of lr (0-1 default 0.9)")
         self.parser.add_argument("--update_lr_steps", default=5_000, type=int, help="")
@@ -41,7 +41,7 @@ class TrainOptions():
                             " For classifier-free guidance learning.")
         self.parser.add_argument('--clip_grad_norm', type=float, default=1, help='Gradient clip')
         self.parser.add_argument('--weight_decay', type=float, default=1e-2, help='Learning rate weight_decay')
-        self.parser.add_argument('--batch_size', type=int, default=64, help='Batch size per GPU')
+        self.parser.add_argument('--batch_size', type=int, default=48, help='Batch size per GPU')
         self.parser.add_argument("--beta_schedule", default='linear', type=str, help="Types of beta in diffusion (e.g. linear, cosine)")
         
         # continue training

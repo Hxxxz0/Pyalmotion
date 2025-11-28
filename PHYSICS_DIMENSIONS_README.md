@@ -205,7 +205,32 @@ def validate_physics_constraints(motion):
 - **HumanML3D**: 22个关节，263维表示
 - **KIT-ML**: 21个关节，251维表示
 - **最大序列长度**: 196帧
-- **采样频率**: 20 FPS
+- **采样频率**: HumanML3D=20 FPS, KIT-ML=12.5 FPS
+
+## KIT-ML数据集维度结构 (251维)
+
+```
+Motion Representation (251 dimensions):
+├── Root Data (4 dimensions): [0:4]
+├── RIC Data (59 dimensions): [4:63] 
+├── Rotation Data (121 dimensions): [63:184]
+├── Local Velocity (63 dimensions): [184:247]
+└── Foot Contact (4 dimensions): [247:251]
+```
+
+### KIT-ML物理特征索引
+
+| 物理组件 | 维度索引 | 描述 |
+|---------|---------|------|
+| Root Motion | [0:4] | 根关节角速度、线性速度、高度 |
+| Foot Contact | [247:251] | 左右足接触状态 |
+| Root Velocity | [184:187] | 根关节3D速度 |
+| Left Foot Velocity | [229:232] | 左脚3D速度 (关节15) |
+| Right Foot Velocity | [244:247] | 右脚3D速度 (关节20) |
+| Left Hip Position | [37:40] | 左髋3D位置 (关节11) |
+| Right Hip Position | [52:55] | 右髋3D位置 (关节16) |
+| Left Ankle Position | [43:46] | 左踝3D位置 (关节13) |
+| Right Ankle Position | [58:61] | 右踝3D位置 (关节18) |
 
 ## 更新日志
 

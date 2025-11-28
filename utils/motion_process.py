@@ -411,6 +411,7 @@ def recover_from_ric(
         data = data.float()
         dtype = "tensor"
     r_rot_quat, r_pos = recover_root_rot_pos(data)
+
     positions = data[..., 4:(joints_num - 1) * 3 + 4]
     positions = positions.view(positions.shape[:-1] + (-1, 3))
 

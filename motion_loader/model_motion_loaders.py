@@ -108,7 +108,7 @@ class GeneratedDataset(Dataset):
         # This step is needed because T2M evaluators expect their norm convention
         normed_motion = motion
         denormed_motion = self.dataset.inv_transform(normed_motion)
-        renormed_motion = (denormed_motion - self.dataset.mean_for_eval) / self.dataset.std_for_eval  # according to T2M norms
+        renormed_motion = (denormed_motion - self.dataset.mean_for_eval) / self.dataset.std_for_eval
         motion = renormed_motion
           
         pos_one_hots = []

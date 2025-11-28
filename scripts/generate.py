@@ -107,10 +107,13 @@ if __name__ == '__main__':
         fw.write('\n'.join([str(l) for l in motion_lens]))
     
     # skeletal animation visualization
-    print(f"saving motion videos to [{out_path}]...")
-    for i,title in enumerate(texts):
-        motion = samples[i]
-        fname = f'{i:02}.mp4'
-        kinematic_tree = paramUtil.t2m_kinematic_chain if (opt.dataset_name == 't2m') else paramUtil.kit_kinematic_chain
-        plot_3d_motion(pjoin(out_path, fname), kinematic_tree, motion, title=title, fps=opt.fps, radius=opt.radius)
+    if not opt.no_video:
+        print(f"saving motion videos to [{out_path}]...")
+        for i,title in enumerate(texts):
+            motion = samples[i]
+            fname = f'{i:02}.mp4'
+            kinematic_tree = paramUtil.t2m_kinematic_chain if (opt.dataset_name == 't2m') else paramUtil.kit_kinematic_chain
+            plot_3d_motion(pjoin(out_path, fname), kinematic_tree, motion, title=title, fps=opt.fps, radius=opt.radius)
+    else:
+        print("skip saving motion videos (flag --no_video enabled)")
 

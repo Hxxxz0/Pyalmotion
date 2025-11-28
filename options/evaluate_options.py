@@ -9,7 +9,7 @@ class TestOptions():
 
     def initialize(self):
         self.parser.add_argument("--opt_path", type=str, default='./checkpoints/t2m/t2m_condunet1d_batch64/opt.txt',help='option file path for loading model')
-        self.parser.add_argument("--gpu_id", type=int, default=7, help='GPU id')
+        self.parser.add_argument("--gpu_id", type=int, default=0, help='GPU id')
 
         # evaluator
         self.parser.add_argument("--evaluator_dir", type=str, default='./data/pretrained_models', help='Directory path where save T2M evaluator\'s checkpoints')
@@ -24,7 +24,7 @@ class TestOptions():
         self.parser.add_argument("--no_fp16", action="store_true", help='Whether use FP16 in inference')
         
         # evaluation
-        self.parser.add_argument("--replication_times", type=int, default=1, help='Number of generation rounds for each text description')
+        self.parser.add_argument("--replication_times", type=int, default=20, help='Number of generation rounds for each text description')
         self.parser.add_argument('--batch_size', type=int, default=32, help='Batch size for eval')
         self.parser.add_argument('--diversity_times', type=int, default=300, help='')
         self.parser.add_argument('--mm_num_samples', type=int, default=100, help='Number of samples for evaluating multimodality')

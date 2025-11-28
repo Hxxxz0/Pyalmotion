@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import time
 import torch.optim as optim
 from collections import OrderedDict
@@ -30,9 +31,13 @@ class DDPMTrainer(object):
         if args.is_train:
             self.mse_criterion = torch.nn.MSELoss(reduction='none')
 
-        # Physics alignment settings
+        # Physics alignment settings - 降低物理约束以提升生成多样性
         self.physics_loss_weight = getattr(args, 'physics_loss_weight', 0.1)
         accelerator.print(f'Physics alignment loss weight: {self.physics_loss_weight}')
+        
+        # Text alignment settings - 增强文本约束以改善FID
+        self.text_loss_weight = getattr(args, 'text_loss_weight', 0.1)
+        accelerator.print(f'Text alignment loss weight: {self.text_loss_weight}')
 
         accelerator.print('Diffusion_config:\n',self.noise_scheduler.config)
 
@@ -44,6 +49,20 @@ class DDPMTrainer(object):
 
         self.optimizer = optim.AdamW(self.model.parameters(), lr=self.opt.lr, weight_decay=self.opt.weight_decay)
         self.scheduler = ExponentialLR(self.optimizer, gamma=args.decay_rate) if args.decay_rate>0 else None
+
+        # Standalone caption embedder (independent of UNet)
+        # Note: embedding only, no downstream usage here
+        qwen_model_name = getattr(args, 'qwen_model_name', 'Qwen/Qwen3-Embedding-0.6B')
+        # Import here to avoid conflicts with local datasets module
+        from transformers import AutoTokenizer, AutoModel
+        self.qwen_tokenizer = AutoTokenizer.from_pretrained(qwen_model_name, trust_remote_code=True)
+        self.qwen_model = AutoModel.from_pretrained(qwen_model_name, trust_remote_code=True)
+        # Move model to the same device as the trainer
+        self.qwen_model = self.qwen_model.to(self.device)
+        # Freeze the model
+        self.qwen_model.eval()
+        for p in self.qwen_model.parameters():
+            p.requires_grad = False
 
     @staticmethod
     def zero_grad(opt_list):
@@ -82,8 +101,42 @@ class DDPMTrainer(object):
         # (this is the forward diffusion process)
         x_t = self.noise_scheduler.add_noise(x_start, real_noise, t)
 
-        # 4. network prediction with physics features
-        self.prediction, self.physics_prediction = self.model(x_t, t, text=caption, return_physics=True)
+        # 4. Standalone caption embedding (embedding only; independent of UNet/text losses)
+        with torch.no_grad():
+            if isinstance(caption, str):
+                caption = [caption]
+            
+            inputs = self.qwen_tokenizer(
+                caption,
+                padding=True,
+                truncation=True,
+                max_length=512,
+                return_tensors="pt",
+            )
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            outputs = self.qwen_model(**inputs)
+            # Use mean pooling of token embeddings for sentence-level representation
+            token_embeddings = outputs.last_hidden_state  # [B, seq_len, 1024]
+            attention_mask = inputs['attention_mask']  # [B, seq_len]
+            
+            # Mean pooling with attention mask
+            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+            sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
+            sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+            self.caption_embeddings = sum_embeddings / sum_mask  # [B, 1024]
+
+        # 5. network prediction with physics and text alignment projection
+        out = self.model(x_t, t, text=caption, return_physics=True, return_text_alignment=True)
+        if isinstance(out, tuple) and len(out) == 3:
+            self.prediction, self.physics_prediction, self.text_alignment = out
+        elif isinstance(out, tuple) and len(out) == 2:
+            self.prediction, self.physics_prediction = out
+            self.text_alignment = None
+        else:
+            self.prediction = out
+            self.physics_prediction = None
+            self.text_alignment = None
         
         if self.opt.prediction_type =='sample':
             self.target = x_start
@@ -188,11 +241,19 @@ class DDPMTrainer(object):
                 physics_weights, 
                 downsampled_mask
             )
-            
-            # Combine losses with weighting
-            self.loss = loss_logs['loss_mot_rec'] + self.physics_loss_weight * loss_logs['loss_physics_align']
-        else:
-            self.loss = loss_logs['loss_mot_rec']
+        
+        # Text alignment loss (UNet projection vs external Qwen embedding)
+        if hasattr(self, 'text_alignment') and self.text_alignment is not None and hasattr(self, 'caption_embeddings') and self.caption_embeddings is not None:
+            # Calculate text alignment loss (sentence-level)
+            loss_logs['loss_text_align'] = F.mse_loss(self.text_alignment, self.caption_embeddings)
+        
+        # Combine losses with weighting
+        total_loss = loss_logs['loss_mot_rec']
+        if 'loss_physics_align' in loss_logs:
+            total_loss += self.physics_loss_weight * loss_logs['loss_physics_align']
+        if 'loss_text_align' in loss_logs:
+            total_loss += self.text_loss_weight * loss_logs['loss_text_align']
+        self.loss = total_loss
 
         return loss_logs
 

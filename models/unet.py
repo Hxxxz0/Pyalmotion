@@ -428,12 +428,29 @@ class CondUnet1D(nn.Module):
             nn.Conv1d(dims[-1] // 2, physics_dim, kernel_size=1)  # Project to physics space
         )
         
+        # Text alignment projection head for external embedding alignment
+        self.text_alignment_head = nn.Sequential(
+            # Multi-layer projector for text semantic anchor
+            nn.Conv1d(dims[-1], 1024, 1),    # Expand bottleneck features
+            nn.SiLU(inplace=True),       # Inplace operation to save memory
+            nn.Conv1d(1024, 1024, 1),    # High-dimensional transformation  
+            nn.SiLU(inplace=True),       # Inplace operation to save memory
+            nn.Conv1d(1024, 1024, 1),     # Project to Qwen embedding dimension
+            
+            # Global pooling to obtain fixed-size representation
+            nn.AdaptiveAvgPool1d(1),     # [B, 1024, L] -> [B, 1024, 1]
+            nn.Flatten()                 # [B, 1024, 1] -> [B, 1024]
+        )
+        
         if zero:
             nn.init.zeros_(self.final_conv.weight)
             nn.init.zeros_(self.final_conv.bias)
             # Initialize physics head with small weights for stable training
             nn.init.normal_(self.physics_head[-1].weight, std=0.02)
             nn.init.zeros_(self.physics_head[-1].bias)
+            # Initialize text alignment head with small weights for stable training
+            nn.init.normal_(self.text_alignment_head[4].weight, std=0.02)
+            nn.init.zeros_(self.text_alignment_head[4].bias)
         
     def forward(
         self, 
@@ -442,6 +459,7 @@ class CondUnet1D(nn.Module):
         cond,
         cond_indices,
         return_physics=False,  # Flag to return physics features for alignment
+        return_text_alignment=False,  # Flag to return text alignment projection
     ):
         temb = self.time_mlp(t)
 
@@ -467,10 +485,19 @@ class CondUnet1D(nn.Module):
             x = block1(x, temb, cond, cond_indices)
             x = block2(x, temb, cond, cond_indices)
 
+        # Compute text alignment projection before final conv
+        text_alignment = None
+        if return_text_alignment:
+            text_alignment = self.text_alignment_head(x)  # [B, 1024]
+        
         x = self.final_conv(x)
         
-        if return_physics:
+        if return_physics and return_text_alignment:
+            return x, physics_features, text_alignment
+        elif return_physics:
             return x, physics_features
+        elif return_text_alignment:
+            return x, text_alignment
         return x
 
 class T2MUnet(nn.Module):
@@ -609,6 +636,7 @@ class T2MUnet(nn.Module):
         uncond=False,
         enc_text=None,
         return_physics=False,  # Flag for physics alignment
+        return_text_alignment=False,  # Flag for text alignment projection
     ):
         """
         Args:
@@ -633,17 +661,29 @@ class T2MUnet(nn.Module):
         padding = (0, PADDING_NEEEDED)
         x = F.pad(x, padding, value=0)
 
-        if return_physics:
-            x, physics_features = self.unet(
+        if return_physics or return_text_alignment:
+            out = self.unet(
                 x,
                 t=timesteps,
                 cond=enc_text,
                 cond_indices=cond_indices,
-                return_physics=True,
-            )  # [bs, nfeats, nframes], [bs, physics_dim, nframes]
+                return_physics=return_physics,
+                return_text_alignment=return_text_alignment,
+            )
             
-            # Restore original temporal length for physics features
-            physics_features = physics_features[:, :, :T].transpose(1, 2)  # [bs, nframes, physics_dim]
+            # Unpack outputs based on flags
+            physics_features = None
+            text_alignment = None
+            if return_physics and return_text_alignment:
+                x, physics_features, text_alignment = out
+            elif return_physics:
+                x, physics_features = out
+            elif return_text_alignment:
+                x, text_alignment = out
+            
+            # Restore original temporal length for physics features if present
+            if physics_features is not None:
+                physics_features = physics_features[:, :, :T].transpose(1, 2)  # [bs, nframes, physics_dim]
         else:
             x = self.unet(
                 x,
@@ -654,8 +694,12 @@ class T2MUnet(nn.Module):
 
         x = x[:, :, :T].transpose(1, 2) # [bs, nframes, nfeats,]
 
-        if return_physics:
+        if return_physics and return_text_alignment:
+            return x, physics_features, text_alignment
+        elif return_physics:
             return x, physics_features
+        elif return_text_alignment:
+            return x, text_alignment
         return x
      
     def forward_with_cfg(
@@ -664,7 +708,7 @@ class T2MUnet(nn.Module):
         timesteps, 
         text=None, 
         enc_text=None,
-        cfg_scale=2.5
+        cfg_scale=2.3
     ):
         """
         Args:

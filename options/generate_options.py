@@ -22,11 +22,12 @@ class GenerateOptions():
         self.parser.add_argument("--seed", default=0, type=int, help="For fixing random seed.")
 
         # generate prompts
-        self.parser.add_argument('--text_prompt', type=str, default="a person waves with his right hand", help='One text description pompt for motion generation')
+        self.parser.add_argument('--text_prompt', type=str, default="", help='One text description pompt for motion generation')
         self.parser.add_argument("--motion_length", default=4.0, type=float, help="The length of the generated motion [in seconds] when using prompts. Maximum is 9.8 for HumanML3D (text-to-motion)")
         self.parser.add_argument('--input_text', type=str, default='', help='File path of texts when using multiple texts.')
         self.parser.add_argument('--input_lens', type=str, default='', help='File path of expected motion frame lengths when using multitext.')
         self.parser.add_argument("--num_samples", type=int, default=10, help='Number of samples for generate when using dataset.')
+        self.parser.add_argument("--no_video", action="store_true", help='Skip saving rendered motion videos during generation.')
 
         # self.parser.add_argument('--result_path', type=str, default="test_sample.mp4", help='Path to save generation result')
         # self.parser.add_argument('--npy_path', type=str, default="", help='Path to save 3D keypoints sequence')

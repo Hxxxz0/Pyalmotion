@@ -16,7 +16,6 @@ def build_models(opt):
         adagn = not opt.no_adagn,
         zero = True,
         no_eff = opt.no_eff,
-        cond_mask_prob = getattr(opt, 'cond_mask_prob', 0.)
         )
 
     return model
